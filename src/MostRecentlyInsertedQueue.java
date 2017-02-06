@@ -8,9 +8,9 @@ public class MostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
     private final int maxQueueCapacity;
     private int currentQueueSize = 0;
 
-    private QueueItem<E> head = null;
-    private QueueItem<E> tail = null;
-    private QueueItem<E> current = null;
+    private QueueItem<E> head;
+    private QueueItem<E> tail;
+    private QueueItem<E> current;
 
     public MostRecentlyInsertedQueue(int capacity) {
 
@@ -64,12 +64,12 @@ public class MostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
         return currentQueueSize;
     }
 
-    public void sizeIncrease() {
+    public void queueSizeIncrease() {
 
         this.currentQueueSize++;
     }
 
-    public void sizeDecrease() {
+    public void queueSizeDecrease() {
 
         this.currentQueueSize--;
     }
@@ -111,7 +111,7 @@ public class MostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
                 tail = item;
 
-                sizeIncrease();
+                queueSizeIncrease();
 
                 return true;
 
@@ -151,7 +151,7 @@ public class MostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
             tail = null;
         }
 
-        sizeDecrease();
+        queueSizeDecrease();
 
         return item;
     }

@@ -26,39 +26,35 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
     }
 
 
-    public class QueueIterator<E> implements Iterator<E> {
-        private QueueItem<E> head;
-        private QueueItem<E> tail;
+    public class QueueIterator implements Iterator<E> {
 
-        private QueueItem<E> prev;
+        private QueueItem<E> previous;
         private QueueItem<E> current;
 
-        public QueueIterator(QueueItem<E> headQueue, QueueItem<E> tailQueue) {
+        public QueueIterator(QueueItem<E> headQueue) {
 
-            this.head = headQueue;
-            this.tail = tailQueue;
             this.current = new QueueItem<>();
-            this.current.setNext(head);
-            this.prev = new QueueItem<>();
-            this.prev.setNext(current);
+            this.current.setNext(headQueue);
+            this.previous = new QueueItem<>();
+            this.previous.setNext(current);
 
         }
 
         @Override
         public boolean hasNext() {
 
-            if (current == tail) return false;
-           /* if (current.getNext() == head) return head != null;
-            else return*/
+            assert current != null;
+
             return current.getNext() != null;
+
         }
 
         @Override
         public E next() {
 
             synchronized (lock) {
-                if (current.getNext() != null) {
-                    prev = current;
+                if (hasNext()) {
+                    previous = current;
                     current = current.getNext();
                     return current.getObject();
                 } else throw new NoSuchElementException();
@@ -70,17 +66,23 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
         public void remove() {
 
             synchronized (lock) {
-                if (current.getNext() != null) {
-                    prev.setNext(current.getNext());
+                if (hasNext()) {
+                    previous.setNext(current.getNext());
+
+                    if (current == head) {
+                        head = head.getNext();
+                    }
+
                     current = current.getNext();
                 } else {
-                    prev.setNext(null);
-                    current.setNext(null);
+                    previous.setNext(null);
+                    if (current == tail) {
+                        tail = previous;
+                    }
+//                    current.setNext(null);
                 }
+                queueSizeDecrease();
             }
-
-
-//            throw new UnsupportedOperationException();
 
         }
     }
@@ -93,7 +95,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
     @Override
     public Iterator<E> iterator() {
 
-        return new QueueIterator<>(head, tail);
+        return new QueueIterator(head);
     }
 
 
@@ -103,12 +105,12 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
         return currentQueueSize.get();
     }
 
-    public void sizeIncrease() {
+    public void queueSizeIncrease() {
 
         currentQueueSize.getAndIncrement();
     }
 
-    public void sizeDecrease() {
+    public void queueSizeDecrease() {
 
         currentQueueSize.getAndDecrement();
     }
@@ -151,7 +153,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
                     tail = item;
 
-                    sizeIncrease();
+                    queueSizeIncrease();
 
                     return true;
 
@@ -191,7 +193,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
                 tail = null;
             }
 
-            sizeDecrease();
+            queueSizeDecrease();
 
             return item;
         }
@@ -215,32 +217,6 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
         return item;
     }
 
-    private class QueueItem<T> {
-        private T item;
-        private QueueItem<T> next;
-
-        public T getObject() {
-
-            return item;
-        }
-
-        public void setObject(T item) {
-
-            this.item = item;
-        }
-
-        public QueueItem<T> getNext() {
-
-            return next;
-        }
-
-        public void setNext(QueueItem<T> next) {
-
-            this.next = next;
-        }
-    }
-
-
     @Override
     public String toString() {
 
@@ -258,6 +234,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
                 "currentQueueSize=" + currentQueueSize.get() + " content: " + outputSting +
                 '}';
     }
+
 
     /**
      * Constructor for use by subclasses.
@@ -489,10 +466,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
     @Override
     public boolean remove(Object o) {
 
-        synchronized (lock) {
-
-            return super.remove(o);
-        }
+        return super.remove(o);
     }
 
     /**
@@ -574,6 +548,31 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
         synchronized (lock) {
 
             return super.retainAll(c);
+        }
+    }
+
+    private class QueueItem<T> {
+        private T item;
+        private QueueItem<T> next;
+
+        public T getObject() {
+
+            return item;
+        }
+
+        public void setObject(T item) {
+
+            this.item = item;
+        }
+
+        public QueueItem<T> getNext() {
+
+            return next;
+        }
+
+        public void setNext(QueueItem<T> next) {
+
+            this.next = next;
         }
     }
 }

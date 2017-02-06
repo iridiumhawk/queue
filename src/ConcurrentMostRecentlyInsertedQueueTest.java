@@ -11,11 +11,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     private Queue<Integer> queue;
     private final int capacityQueue = 100;
     private final int threadCounter = 10;
-//    private Thread[] arrayThreads = new Thread[threadCounter];
-    private final TimeUnit timeUnit = TimeUnit.MINUTES;
-    private final int repeatInTimeUnits = 1;
+// for stress test
+//    private final TimeUnit timeUnit = TimeUnit.MINUTES;
+//    private final int repeatInTimeUnits = 1;
 
-    private final int repeatCounter = 10000000;
+    private final int repeatCounter = 1000000;
 
     private static ArrayList<TestResults> testResults = new ArrayList<>();
 
@@ -30,6 +30,7 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
     @AfterClass
     public static void down() throws Exception {
+    // print test results
 
         for (TestResults tr : testResults) {
             System.out.println("-----------------------");
@@ -44,17 +45,27 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     @Test
     public void remove() throws Exception {
 
-
-
         queue.offer(1);
         queue.offer(2);
         queue.offer(3);
-        queue.remove(1);
+        queue.offer(4);
+        queue.remove(4);
 
+//        queue.clear();
+//        assertTrue(queue.isEmpty());
+//        queue.remove(null);
+
+//        System.out.println(queue.toString());
+
+        assertSame(1, queue.poll());
         assertSame(2, queue.poll());
         assertSame(3, queue.poll());
+    }
 
-/*
+    //todo make as another tests
+    @Test
+    public void removeThreads() throws Exception {
+
         TestExpression testRemove = new TestExpression() {
             private int innerCounter = 0;
             private Random rand = new Random();
@@ -65,16 +76,17 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
                 innerCounter++;
                 if (innerCounter % 10 == 0) {
                     return queue.remove(innerCounter);
-                } return false;
+                }
+                return false;
             }
         };
 
-        runThreads(testRemove, "remove");*/
+        runThreads(testRemove, "remove");
     }
 
     @Test
     public void removeAll() throws Exception {
-
+        //todo
     }
 
 
@@ -86,6 +98,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         queue.clear();
 
         assertSame(null, queue.poll());
+    }
+
+
+    @Test
+    public void clearThreads() throws Exception {
 
         runThreads(new TestExpressionClear(), "clear");
     }
@@ -100,9 +117,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     @Test
     public void iterator() throws Exception {
 
- /*       assertEquals(false, queue.iterator().hasNext());
+        assertEquals(false, queue.iterator().hasNext());
 
         queue.offer(1);
+        assertEquals(true, queue.iterator().hasNext());
+
         queue.offer(2);
         Iterator<Integer> it = queue.iterator();
 
@@ -110,36 +129,39 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         assertSame(1, it.next());
         assertSame(2, it.next());
 
+        assertEquals(false, it.hasNext());
 
 
         exception.expect(NoSuchElementException.class);
         it.next();
 
-
         assertEquals(false, it.hasNext());
 
-        assertEquals(false, it.hasNext());*/
-   /*
+        queue.offer(1);
         queue.poll();
         assertEquals(false, queue.iterator().hasNext());
-*/
+    }
+
+    @Test
+    public void iteratorThreads() throws Exception {
 
         runThreads(new TestExpressionIterator(), "iterator");
     }
 
-/*
-    @Test
+/*    @Test
+    @Ignore
     public void iteratorFailUnsupportedOperationException() throws Exception {
 
         queue.offer(1);
-        queue.iterator().next();
+        Iterator<Integer> it = queue.iterator();
+
+        it.next();
 
         exception.expect(UnsupportedOperationException.class);
 
-        queue.iterator().remove();
+        it.remove();
 
-    }
-*/
+    }*/
 
     @Test
     public void size() throws Exception {
@@ -167,9 +189,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
             assertEquals(true, queue.offer(i));
         }
         assertSame(1, queue.poll());
+    }
 
+    @Test
+    public void offerThreads() throws Exception {
         runThreads(new TestExpressionOffer(), "offer");
-
     }
 
 
@@ -179,7 +203,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         queue.offer(1);
         assertSame(1, queue.poll());
         assertSame(null, queue.poll());
+    }
 
+
+    @Test
+    public void pollThreads() throws Exception {
         runThreads(new TestExpressionPoll(), "poll");
     }
 
@@ -188,9 +216,12 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
         queue.offer(1);
         assertSame(1, queue.peek());
+    }
 
+
+    @Test
+    public void peekThreads() throws Exception {
         runThreads(new TestExpressionPeek(), "peak");
-
     }
 
     @Test
@@ -198,15 +229,15 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
         exception.expect(NullPointerException.class);
         queue.offer(null);
-
     }
 
-
+    //threads executor
     private void runThreads(final TestExpression expression, String testName) throws Exception {
 
         final TestResults currentTest = new TestResults(testName);
         testResults.add(currentTest);
         currentTest.start();
+
         final CountDownLatch latch = new CountDownLatch(threadCounter);
 
         Runnable runner = new Runnable() {
@@ -215,6 +246,7 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
                 TestEntity currentTestThread = new TestEntity(Thread.currentThread().getName());
                 currentTest.addToList(currentTestThread);
+
                 currentTestThread.start();
 
                 int counter = 0;
@@ -223,7 +255,9 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
                     try {
                         queue.offer(i);
 
-                        if (expression.test()) currentTestThread.success();
+                        if (expression.test()) {
+                            currentTestThread.success();
+                        }
 
                         counter++;
                     } catch (Exception e) {
@@ -243,18 +277,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         ExecutorService service = Executors.newFixedThreadPool(threadCounter);
 
         for (int i = 0; i < threadCounter; i++) {
-           /* arrayThreads[i] = new Thread(runner);
-            arrayThreads[i].start();*/
             service.execute(runner);
         }
-//        service.shutdown();
-  /*      for (int i = 0; i < threadCounter; i++) {
-            arrayThreads[i].join();
-        }*/
 
         latch.await();
         currentTest.end();
-
     }
 
 
@@ -316,6 +343,7 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
     }
 
+    //todo change to lambda in java8
     private class TestExpressionPeek implements TestExpression {
         @Override
         public boolean test() {
@@ -344,6 +372,7 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
 
     private class TestExpressionIterator implements TestExpression {
+        @SuppressWarnings("WhileLoopReplaceableByForEach")
         @Override
         public boolean test() {
 
@@ -351,7 +380,9 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
             Iterator<Integer> it = queue.iterator();
 
-            while (it.hasNext()) result = it.next() != null;
+            while (it.hasNext()) {
+                result = it.next() != null;
+            }
 
             return result;
         }
@@ -380,7 +411,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
             }
 
             return false;
-
         }
     }
 
@@ -388,8 +418,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         private volatile ArrayList<TestEntity> threadList = new ArrayList<>();
 
         public TestResults(String testName) {
-
-//            super(testName);
 
             this.name = testName;
 
