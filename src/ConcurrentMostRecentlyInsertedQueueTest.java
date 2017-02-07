@@ -3,22 +3,24 @@ import org.junit.rules.ExpectedException;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
 public class ConcurrentMostRecentlyInsertedQueueTest {
 
     private Queue<Integer> queue;
-    private final int capacityQueue = 100;
+    private final int capacityQueue = 1000;
     private final int threadCounter = 10;
 // for stress test
 //    private final TimeUnit timeUnit = TimeUnit.MINUTES;
 //    private final int repeatInTimeUnits = 1;
 
-    private final int repeatCounter = 1000000;
+    private final int repeatCounter = 1000000; //time of 1 million repeat about 9 seconds
 
-    private static ArrayList<TestResults> testResults = new ArrayList<>();
+    private final int progressDivider = 10; //haw often print progress on console
 
+    private static ArrayList<ResultsOfOneTest> testResults = new ArrayList<>();
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
@@ -30,12 +32,14 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
     @AfterClass
     public static void down() throws Exception {
-    // print test results
+        // print test results
 
-        for (TestResults tr : testResults) {
-            System.out.println("-----------------------");
+        for (ResultsOfOneTest tr : testResults) {
+
+            System.out.println("----------------------------------");
             System.out.println("Test method: " + tr.name);
-            for (TestEntity te : tr.threadList) {
+
+            for (ResultsOfOneThreadTest te : tr.threadList) {
                 System.out.println(te.name + " - exectime: " + te.timeLong + "ms, errors: " + te.errorCounter + ", repeats: " + te.repeatCounter + ", success: " + te.successCounter + ", mediumQueueSize: " + te.mediumQueueSize);
             }
         }
@@ -48,47 +52,22 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         queue.offer(1);
         queue.offer(2);
         queue.offer(3);
-        queue.offer(4);
-        queue.remove(4);
+        queue.remove(1);
 
-//        queue.clear();
-//        assertTrue(queue.isEmpty());
-//        queue.remove(null);
-
-//        System.out.println(queue.toString());
-
-        assertSame(1, queue.poll());
+//        assertSame(1, queue.poll());
         assertSame(2, queue.poll());
         assertSame(3, queue.poll());
     }
 
-    //todo make as another tests
     @Test
     public void removeThreads() throws Exception {
-
-        TestExpression testRemove = new TestExpression() {
-            private int innerCounter = 0;
-            private Random rand = new Random();
-
-            @Override
-            public boolean test() {
-
-                innerCounter++;
-                if (innerCounter % 10 == 0) {
-                    return queue.remove(innerCounter);
-                }
-                return false;
-            }
-        };
-
-        runThreads(testRemove, "remove");
+        runThreads(new TestExpressionRemove(), "remove");
     }
 
     @Test
     public void removeAll() throws Exception {
         //todo
     }
-
 
     @Test
     public void clear() throws Exception {
@@ -100,17 +79,13 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         assertSame(null, queue.poll());
     }
 
-
     @Test
     public void clearThreads() throws Exception {
-
         runThreads(new TestExpressionClear(), "clear");
     }
 
-
     @Test
     public void toStringTest() throws Exception {
-
         runThreads(new TestExpressionToString(), "toString");
     }
 
@@ -144,24 +119,8 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
     @Test
     public void iteratorThreads() throws Exception {
-
         runThreads(new TestExpressionIterator(), "iterator");
     }
-
-/*    @Test
-    @Ignore
-    public void iteratorFailUnsupportedOperationException() throws Exception {
-
-        queue.offer(1);
-        Iterator<Integer> it = queue.iterator();
-
-        it.next();
-
-        exception.expect(UnsupportedOperationException.class);
-
-        it.remove();
-
-    }*/
 
     @Test
     public void size() throws Exception {
@@ -181,7 +140,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         assertEquals(capacityQueue, queue.size());
     }
 
-
     @Test
     public void offer() throws Exception {
 
@@ -196,7 +154,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         runThreads(new TestExpressionOffer(), "offer");
     }
 
-
     @Test
     public void poll() throws Exception {
 
@@ -204,7 +161,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         assertSame(1, queue.poll());
         assertSame(null, queue.poll());
     }
-
 
     @Test
     public void pollThreads() throws Exception {
@@ -217,7 +173,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         queue.offer(1);
         assertSame(1, queue.peek());
     }
-
 
     @Test
     public void peekThreads() throws Exception {
@@ -232,9 +187,9 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     }
 
     //threads executor
-    private void runThreads(final TestExpression expression, String testName) throws Exception {
+    private void runThreads(final TestExecution execution, String testName) throws Exception {
 
-        final TestResults currentTest = new TestResults(testName);
+        final ResultsOfOneTest currentTest = new ResultsOfOneTest(testName);
         testResults.add(currentTest);
         currentTest.start();
 
@@ -244,32 +199,40 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
             @Override
             public void run() {
 
-                TestEntity currentTestThread = new TestEntity(Thread.currentThread().getName());
-                currentTest.addToList(currentTestThread);
+                ResultsOfOneThreadTest currentThreadTest = new ResultsOfOneThreadTest(Thread.currentThread().getName());
+                currentTest.addToList(currentThreadTest);
 
-                currentTestThread.start();
+                currentThreadTest.start();
 
                 int counter = 0;
+//                int progressCounter = repeatCounter / progressDivider;
 
                 for (int i = 0; i < repeatCounter; i++) {
                     try {
                         queue.offer(i);
 
-                        if (expression.test()) {
-                            currentTestThread.success();
+                        if (execution.test()) {
+                            currentThreadTest.success();
                         }
+
+                        //write progress for one thread in shared field of test
+                        if (i % (repeatCounter / progressDivider) == 0) {
+                            currentTest.addProgressPercent(100 / progressDivider);
+                        }
+
 
                         counter++;
                     } catch (Exception e) {
-                        currentTestThread.error();
+                        currentThreadTest.error();
                     }
 
-                    currentTestThread.calculateQueueSize(queue.size());
+                    currentThreadTest.calculateQueueSize(queue.size());
                 }
-                currentTestThread.end();
-                currentTestThread.setRepeatCounter(counter);
+                currentThreadTest.end();
+                currentThreadTest.setRepeatCounter(counter);
 
                 assertEquals(counter, repeatCounter);
+
                 latch.countDown();
             }
         };
@@ -285,11 +248,11 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     }
 
 
-    interface TestExpression {
+    interface TestExecution {
         boolean test();
     }
 
-    private class TestEntity {
+    private class ResultsOfOneThreadTest {
         protected String name;
         private Long timeBeginTest;
         private Long timeEndTest;
@@ -299,12 +262,12 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         private int errorCounter;
         private int mediumQueueSize;
 
-        public TestEntity(String name) {
+        public ResultsOfOneThreadTest(String name) {
 
             this.name = name;
         }
 
-        private TestEntity() {
+        private ResultsOfOneThreadTest() {
 
         }
 
@@ -317,7 +280,6 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
 
             this.successCounter++;
         }
-
 
         public void setRepeatCounter(int repeatCounter) {
 
@@ -344,35 +306,30 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
     }
 
     //todo change to lambda in java8
-    private class TestExpressionPeek implements TestExpression {
+    private class TestExpressionPeek implements TestExecution {
         @Override
         public boolean test() {
-
             return queue.peek() != null;
-
         }
     }
 
-    private class TestExpressionToString implements TestExpression {
+    private class TestExpressionToString implements TestExecution {
         @Override
         public boolean test() {
-
             return queue.toString() != null;
-
         }
     }
 
-    private class TestExpressionPoll implements TestExpression {
+    private class TestExpressionPoll implements TestExecution {
         @Override
         public boolean test() {
-
             return queue.poll() != null;
         }
     }
 
 
-    private class TestExpressionIterator implements TestExpression {
-        @SuppressWarnings("WhileLoopReplaceableByForEach")
+    private class TestExpressionIterator implements TestExecution {
+//        @SuppressWarnings("WhileLoopReplaceableByForEach")
         @Override
         public boolean test() {
 
@@ -388,18 +345,30 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         }
     }
 
+    private class TestExpressionRemove implements TestExecution {
+        private int innerCounter;
+        private Random rand = new Random();
 
-    private class TestExpressionOffer implements TestExpression {
         @Override
         public boolean test() {
 
+            innerCounter++;
+            if (innerCounter % 10 == 0) {
+                return queue.remove(rand.nextInt(innerCounter)+1);
+            }
+            return false;
+        }
+    }
+
+    private class TestExpressionOffer implements TestExecution {
+        @Override
+        public boolean test() {
             return true;
         }
     }
 
-
-    private class TestExpressionClear implements TestExpression {
-        private int innerCounter = 0;
+    private class TestExpressionClear implements TestExecution {
+        private int innerCounter;
 
         @Override
         public boolean test() {
@@ -414,19 +383,66 @@ public class ConcurrentMostRecentlyInsertedQueueTest {
         }
     }
 
-    private class TestResults extends TestEntity {
-        private volatile ArrayList<TestEntity> threadList = new ArrayList<>();
+    private class ResultsOfOneTest extends ResultsOfOneThreadTest {
+        private volatile ArrayList<ResultsOfOneThreadTest> threadList = new ArrayList<>();
+        private AtomicInteger progressPercent = new AtomicInteger(0);
 
-        public TestResults(String testName) {
+        public ResultsOfOneTest(String testName) {
 
             this.name = testName;
+            System.out.println("Test " + this.name + " progress: ");
+
+
+            //print progress of test in %
+            Thread monitor = new TestProgressMonitor(threadCounter,progressDivider,progressPercent);
+            monitor.setDaemon(true);
+            monitor.start();
 
         }
 
-        public void addToList(TestEntity testEntity) {
+        public void addToList(ResultsOfOneThreadTest testEntity) {
 
             threadList.add(testEntity);
         }
+
+        public void addProgressPercent(int delta) {
+
+            progressPercent.getAndAdd(delta);
+        }
     }
+
+    private class TestProgressMonitor extends Thread {
+        int threadCounter;
+        int progressDivider;
+        AtomicInteger progressPercent;
+
+        public TestProgressMonitor(int threadCounter, int progressDivider, AtomicInteger progressPercent) {
+            this.threadCounter = threadCounter;
+            this.progressDivider = progressDivider;
+            this.progressPercent = progressPercent;
+        }
+
+        @Override
+            public void run() {
+
+                int currentProgress = 0;
+                try {
+                    while (true) {
+
+                        if (progressPercent.get() / threadCounter > 100 / progressDivider + currentProgress) {
+                            currentProgress += (100 / progressDivider);
+                            System.out.println(currentProgress+"%");
+                        }
+
+                        Thread.sleep(100);
+                    }
+
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+
 }
 

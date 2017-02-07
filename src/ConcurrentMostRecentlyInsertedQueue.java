@@ -3,6 +3,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
@@ -16,12 +17,10 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
 
     public ConcurrentMostRecentlyInsertedQueue(int capacity) {
-
         this.maxQueueCapacity = capacity;
     }
 
     public boolean isEmpty() {
-
         return head == null;
     }
 
@@ -30,6 +29,10 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
         private QueueItem<E> previous;
         private QueueItem<E> current;
+
+//        for block free algorithm
+//        AtomicReference<QueueItem<E>> previous;
+//        AtomicReference<QueueItem<E>> current;
 
         public QueueIterator(QueueItem<E> headQueue) {
 
@@ -46,24 +49,23 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
             assert current != null;
 
             return current.getNext() != null;
-
         }
 
         @Override
-        public E next() {
+        public  E next() { //synchronized faster, but have race condition?
 
             synchronized (lock) {
                 if (hasNext()) {
-                    previous = current;
-                    current = current.getNext();
-                    return current.getObject();
+                        previous = current;
+                        current = current.getNext();
+                        return current.getObject();
+
                 } else throw new NoSuchElementException();
             }
         }
 
-
         @Override
-        public void remove() {
+        public  void remove() {
 
             synchronized (lock) {
                 if (hasNext()) {
@@ -79,7 +81,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
                     if (current == tail) {
                         tail = previous;
                     }
-//                    current.setNext(null);
+                    current.setNext(null);
                 }
                 queueSizeDecrease();
             }
@@ -97,7 +99,6 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
 
         return new QueueIterator(head);
     }
-
 
     @Override
     public int size() {
@@ -133,7 +134,7 @@ public class ConcurrentMostRecentlyInsertedQueue<E> extends AbstractQueue<E> {
      *                                  prevents it from being added to this queue
      */
     @Override
-    public boolean offer(E e) {
+    public  boolean offer(E e) {
 
         if (e == null) throw new NullPointerException();
 
